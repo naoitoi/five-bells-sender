@@ -28,6 +28,7 @@
     "babel-runtime": "^6.3.19",
     "canonical-json": "0.0.4",
     "five-bells-pathfind": "~4.2.0",
+    "five-bells-shared": "~8.9.0",
     "superagent": "^1.5.0",
     "uuid4": "^1.0.0"
   },

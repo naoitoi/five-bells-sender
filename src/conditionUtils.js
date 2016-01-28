@@ -2,7 +2,6 @@
 const request = require('superagent')
 const crypto = require('crypto')
 const stringifyJSON = require('canonical-json')
-const makeCaseAttestation = require('five-bells-shared/makeCaseAttestation')
 
 /**
  * @param {Transfer} finalTransfer
@@ -73,7 +72,7 @@ function getNotaryCondition (params) {
     type: 'ed25519-sha512',
     signer: params.notary,
     public_key: params.notaryPublicKey,
-    message_hash: sha512(makeCaseAttestation(params.caseID, params.state))
+    message_hash: sha512('urn:notary:' + params.caseID + ':' + params.state)
   }
 }
 

@@ -3,17 +3,17 @@ const request = require('superagent')
 const uuid = require('uuid4')
 const Pathfinder = require('five-bells-pathfind').Pathfinder
 
-import {paymentsToTransfers, postPayments} from './payment_utils'
+import {paymentsToTransfers, postPayments} from './paymentUtils'
 import {
   setupTransfers,
   postTransfers,
   transferExpiresAt
-} from './transfer_utils'
+} from './transferUtils'
 import {
   getReceiptCondition,
   getExecutionCondition,
   getCancellationCondition
-} from './condition_utils'
+} from './conditionUtils'
 
 /**
  * Create and execute a transaction.
@@ -36,33 +36,56 @@ import {
  * @param {Condition} params.receiptCondition - Object, execution condition.
  *                                              If not provided, one will be generated.
  *
- * Other:
- * @param {[Object]} params.subpayments - The quoted payment path. If provided, the
- *                                        pathfinding/quoting steps will be skipped.
  * @param {String} params.destinationMemo
  */
-export default async function (params) {
-  const {
-    sourceLedger,
-    destinationLedger,
-    sourceUsername,
-    sourcePassword
-  } = params
-  const sourceAccount = params.sourceAccount || ledgerToAccount(sourceLedger, sourceUsername)
-  const destinationAccount = params.destinationAccount || ledgerToAccount(destinationLedger, params.destinationUsername)
+export default async function sendPayment (params) {
+  setupAccountParams(params)
+  await executePayment((await findPath({
+    sourceLedger: params.sourceLedger,
+    destinationLedger: params.destinationLedger,
+    destinationAccount: params.destinationAccount,
+    destinationAmount: params.destinationAmount
+  })), params)
+}
 
-  const {notary, notaryPublicKey} = params
+/**
+ * Execute a transaction.
+ *
+ * @param {[Object]} subpayments - The quoted payment path.
+ * @param {Object} params
+ *
+ * Required for both modes:
+ * @param {URI} params.sourceLedger - Ledger URI
+ * @param {URI} params.sourceAccount - Account URI
+ * @param {String} params.sourceUsername
+ * @param {String} params.sourcePassword
+ * @param {URI} params.destinationLedger - Ledger URI
+ * @param {URI} params.destinationAccount - Account URI
+ * @param {String} params.destinationUsername
+ * @param {String} params.destinationAmount - Amount (a string, so as not to lose precision)
+ *
+ * Required for Atomic mode only:
+ * @param {URI} params.notary - Notary URI (if provided, use Atomic mode)
+ * @param {String} params.notaryPublicKey - Base64-encoded public key
+ * @param {Condition} params.receiptCondition - Object, execution condition.
+ *                                              If not provided, one will be generated.
+ *
+ * @param {String} params.destinationMemo
+ */
+export async function executePayment (subpayments, params) {
+  setupAccountParams(params)
+
+  const {
+    sourceUsername,
+    sourcePassword,
+    sourceAccount,
+    notary,
+    notaryPublicKey
+  } = params
   const isAtomic = !!notary
   if (isAtomic && !notaryPublicKey) {
     throw new Error('Missing required parameter: notaryPublicKey')
   }
-
-  const subpayments = params.subpayments || (await findPath({
-    sourceLedger,
-    destinationLedger,
-    destinationAccount,
-    destinationAmount: params.destinationAmount
-  }))
 
   let transfers = paymentsToTransfers(subpayments, sourceAccount)
   if (params.destinationMemo) {
@@ -121,6 +144,13 @@ export default async function (params) {
  */
 function ledgerToAccount (ledger, username) {
   return ledger + '/accounts/' + encodeURIComponent(username)
+}
+
+function setupAccountParams (params) {
+  params.sourceAccount = params.sourceAccount ||
+    ledgerToAccount(params.sourceLedger, params.sourceUsername)
+  params.destinationAccount = params.destinationAccount ||
+    ledgerToAccount(params.destinationLedger, params.destinationUsername)
 }
 
 // /////////////////////////////////////////////////////////////////////////////
